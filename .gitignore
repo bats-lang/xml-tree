@@ -1,0 +1,7 @@
+*.sats
+*.dats
+*_dats.c
+*.o
+debug/
+release/
+_bats_*
