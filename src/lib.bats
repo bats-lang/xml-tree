@@ -1,7 +1,7 @@
 (* xml-tree -- recursive descent XML tree parser *)
-(* Builds a tree of elements/text from XML bytes. *)
-(* Tree nodes store integer offsets into the input buffer. *)
-(* No $UNSAFE. All byte access through safe array operations. *)
+(* Nodes store integer offsets into the input buffer. *)
+(* Size-indexed datavtypes for proven-terminating free. *)
+(* No $UNSAFE. *)
 
 #include "share/atspre_staload.hats"
 
@@ -9,20 +9,23 @@
 #use arith as AR
 
 (* ============================================================
-   Types -- nodes store offsets, not pointers
+   Types -- size-indexed for termination proofs
    ============================================================ *)
 
-#pub datavtype xml_node =
-  | xml_element of (int(*name_off*), int(*name_len*), xml_attr_list, xml_node_list)
-  | xml_text of (int(*text_off*), int(*text_len*))
+#pub datavtype xml_node(sz:int) =
+  | {sa:nat}{sc:nat}
+    xml_element(1+sa+sc) of (int, int, xml_attr_list(sa), xml_node_list(sc))
+  | xml_text(1) of (int, int)
 
-#pub and xml_node_list =
-  | xml_nodes_nil of ()
-  | xml_nodes_cons of (xml_node, xml_node_list)
+#pub and xml_node_list(sz:int) =
+  | xml_nodes_nil(0) of ()
+  | {s1:pos}{s2:nat}
+    xml_nodes_cons(s1+s2) of (xml_node(s1), xml_node_list(s2))
 
-#pub and xml_attr_list =
-  | xml_attrs_nil of ()
-  | xml_attrs_cons of (int(*noff*), int(*nlen*), int(*voff*), int(*vlen*), xml_attr_list)
+#pub and xml_attr_list(sz:int) =
+  | xml_attrs_nil(0) of ()
+  | {s1:nat}
+    xml_attrs_cons(1+s1) of (int, int, int, int, xml_attr_list(s1))
 
 (* ============================================================
    Public API
@@ -30,14 +33,14 @@
 
 #pub fun parse_document
   {lb:agz}{n:pos}
-  (data: !$A.borrow(byte, lb, n), len: int n): xml_node_list
+  (data: !$A.borrow(byte, lb, n), len: int n): [sz:nat] xml_node_list(sz)
 
-#pub fun free_nodes {k:nat} (nodes: xml_node_list, fuel: int k): void
+#pub fun free_nodes {sz:nat} (nodes: xml_node_list(sz)): void
 
-#pub fun free_node {k:nat} (node: xml_node, fuel: int k): void
+#pub fun free_node {sz:pos} (node: xml_node(sz)): void
 
 (* ============================================================
-   Internal -- safe byte read helper
+   Safe byte read
    ============================================================ *)
 
 fn _peek {lb:agz}{n:pos}
@@ -51,37 +54,27 @@ in
 end
 
 fn _is_ws(c: int): int =
-  if c = 32 then 1
-  else if c = 9 then 1
-  else if c = 10 then 1
-  else if c = 13 then 1
-  else 0
+  if c = 32 then 1 else if c = 9 then 1 else if c = 10 then 1 else if c = 13 then 1 else 0
 
 fn _is_name_char(c: int): int =
   if c >= 97 then (if c < 123 then 1 else 0)
   else if c >= 65 then (if c < 91 then 1 else 0)
   else if c >= 48 then (if c < 58 then 1 else 0)
-  else if c = 95 then 1
-  else if c = 45 then 1
-  else if c = 46 then 1
-  else if c = 58 then 1
-  else 0
+  else if c = 95 then 1 else if c = 45 then 1 else if c = 46 then 1 else if c = 58 then 1 else 0
 
 (* ============================================================
-   Scanning helpers -- all take borrow + fuel
+   Scanning helpers
    ============================================================ *)
 
 fun _skip_ws {lb:agz}{n:pos}{k:nat} .<k>.
-  (data: !$A.borrow(byte, lb, n), len: int n,
-   rem: int(k), p: int): int =
+  (data: !$A.borrow(byte, lb, n), len: int n, rem: int(k), p: int): int =
   if rem <= 0 then p
   else if p >= len then p
   else if _is_ws(_peek(data, p, len)) = 1 then _skip_ws(data, len, rem - 1, p + 1)
   else p
 
 fun _skip_comment {lb:agz}{n:pos}{k:nat} .<k>.
-  (data: !$A.borrow(byte, lb, n), len: int n,
-   rem: int(k), p: int): int =
+  (data: !$A.borrow(byte, lb, n), len: int n, rem: int(k), p: int): int =
   if rem <= 0 then len
   else if p + 2 >= len then len
   else if _peek(data, p, len) = 45 then
@@ -92,8 +85,7 @@ fun _skip_comment {lb:agz}{n:pos}{k:nat} .<k>.
   else _skip_comment(data, len, rem - 1, p + 1)
 
 fun _skip_pi {lb:agz}{n:pos}{k:nat} .<k>.
-  (data: !$A.borrow(byte, lb, n), len: int n,
-   rem: int(k), p: int): int =
+  (data: !$A.borrow(byte, lb, n), len: int n, rem: int(k), p: int): int =
   if rem <= 0 then len
   else if p + 1 >= len then len
   else if _peek(data, p, len) = 63 then
@@ -102,8 +94,7 @@ fun _skip_pi {lb:agz}{n:pos}{k:nat} .<k>.
   else _skip_pi(data, len, rem - 1, p + 1)
 
 fun _skip_doctype {lb:agz}{n:pos}{k:nat} .<k>.
-  (data: !$A.borrow(byte, lb, n), len: int n,
-   rem: int(k), p: int, depth: int): int =
+  (data: !$A.borrow(byte, lb, n), len: int n, rem: int(k), p: int, depth: int): int =
   if rem <= 0 then len
   else if p >= len then len
   else let val c = _peek(data, p, len) in
@@ -114,8 +105,7 @@ fun _skip_doctype {lb:agz}{n:pos}{k:nat} .<k>.
   end
 
 fun _scan_name {lb:agz}{n:pos}{k:nat} .<k>.
-  (data: !$A.borrow(byte, lb, n), len: int n,
-   rem: int(k), p: int): int =
+  (data: !$A.borrow(byte, lb, n), len: int n, rem: int(k), p: int): int =
   if rem <= 0 then p
   else if p >= len then p
   else if _is_name_char(_peek(data, p, len)) = 1 then _scan_name(data, len, rem - 1, p + 1)
@@ -127,7 +117,7 @@ fun _scan_name {lb:agz}{n:pos}{k:nat} .<k>.
 
 fun _parse_attrs {lb:agz}{n:pos}{k:nat} .<k>.
   (data: !$A.borrow(byte, lb, n), len: int n,
-   rem: int(k), pos: int, end_pos: int): (xml_attr_list, int) = let
+   rem: int(k), pos: int, end_pos: int): [sa:nat] (xml_attr_list(sa), int) = let
   val p = _skip_ws(data, len, $AR.checked_nat(end_pos), pos)
 in
   if rem <= 0 then (xml_attrs_nil(), p)
@@ -172,7 +162,7 @@ end
 
 fun _parse_nodes {lb:agz}{n:pos}{k:nat} .<k>.
   (data: !$A.borrow(byte, lb, n), len: int n,
-   rem: int(k), pos: int): (xml_node_list, int) = let
+   rem: int(k), pos: int): [sz:nat] (xml_node_list(sz), int) = let
   val p = _skip_ws(data, len, $AR.checked_nat(len), pos)
 in
   if rem <= 0 then (xml_nodes_nil(), p)
@@ -216,7 +206,7 @@ end
 
 and _parse_element {lb:agz}{n:pos}{k:nat} .<k>.
   (data: !$A.borrow(byte, lb, n), len: int n,
-   rem: int(k), pos: int): (xml_node, int) = let
+   rem: int(k), pos: int): [sz:pos] (xml_node(sz), int) = let
   val p = _skip_ws(data, len, $AR.checked_nat(len), pos + 1)
   val name_start = p
   val name_end = _scan_name(data, len, $AR.checked_nat(len), p)
@@ -236,19 +226,15 @@ and _parse_element {lb:agz}{n:pos}{k:nat} .<k>.
         else @(p3, 0)
       else if c = 34 then let
         fun skip_dq {lb:agz}{n:pos}{j2:nat} .<j2>.
-          (data: !$A.borrow(byte, lb, n), len: int n,
-           j2rem: int(j2), p4: int): int =
-          if j2rem <= 0 then p4
-          else if p4 >= len then p4
+          (data: !$A.borrow(byte, lb, n), len: int n, j2rem: int(j2), p4: int): int =
+          if j2rem <= 0 then p4 else if p4 >= len then p4
           else if _peek(data, p4, len) = 34 then p4 + 1
           else skip_dq(data, len, j2rem - 1, p4 + 1)
       in find_tag_end(data, len, jrem - 1, skip_dq(data, len, $AR.checked_nat(len), p3 + 1)) end
       else if c = 39 then let
         fun skip_sq {lb:agz}{n:pos}{j2:nat} .<j2>.
-          (data: !$A.borrow(byte, lb, n), len: int n,
-           j2rem: int(j2), p4: int): int =
-          if j2rem <= 0 then p4
-          else if p4 >= len then p4
+          (data: !$A.borrow(byte, lb, n), len: int n, j2rem: int(j2), p4: int): int =
+          if j2rem <= 0 then p4 else if p4 >= len then p4
           else if _peek(data, p4, len) = 39 then p4 + 1
           else skip_sq(data, len, j2rem - 1, p4 + 1)
       in find_tag_end(data, len, jrem - 1, skip_sq(data, len, $AR.checked_nat(len), p3 + 1)) end
@@ -265,10 +251,8 @@ in
   else let
     val (children, child_end_pos) = _parse_nodes(data, len, rem - 1, after_tag)
     fun skip_closing {lb:agz}{n:pos}{j:nat} .<j>.
-      (data: !$A.borrow(byte, lb, n), len: int n,
-       jrem: int(j), p3: int): int =
-      if jrem <= 0 then p3
-      else if p3 >= len then p3
+      (data: !$A.borrow(byte, lb, n), len: int n, jrem: int(j), p3: int): int =
+      if jrem <= 0 then p3 else if p3 >= len then p3
       else if _peek(data, p3, len) = 62 then p3 + 1
       else skip_closing(data, len, jrem - 1, p3 + 1)
     val final_pos =
@@ -283,33 +267,29 @@ in
 end
 
 (* ============================================================
-   Public implementations
+   Free -- termination metric is the size index
    ============================================================ *)
 
 implement parse_document {lb}{n} (data, len) = let
   val (nodes, _) = _parse_nodes(data, len, $AR.checked_nat(len), 0)
 in nodes end
 
-(* Structural recursion on linear datavtypes: terminates because each
-   recursive call consumes one constructor, and the structure is finite.
-   ATS2 can't express this with int metrics; unsafe = true covers the
-   non-metric fun declarations. No ptr, no $UNSAFE blocks, no C code. *)
-
-fun _free_attrs(attrs: xml_attr_list): void =
+fun _free_attrs {sa:nat} .<sa>.
+  (attrs: xml_attr_list(sa)): void =
   case+ attrs of
   | ~xml_attrs_nil() => ()
   | ~xml_attrs_cons(_, _, _, _, rest) => _free_attrs(rest)
 
-implement free_node {k} (node, fuel) =
+implement free_node {sz} (node) =
   case+ node of
   | ~xml_element(_, _, attrs, children) => let
       val () = _free_attrs(attrs)
-    in free_nodes(children, fuel) end
+    in free_nodes(children) end
   | ~xml_text(_, _) => ()
 
-implement free_nodes {k} (nodes, fuel) =
+implement free_nodes {sz} (nodes) =
   case+ nodes of
   | ~xml_nodes_nil() => ()
   | ~xml_nodes_cons(node, rest) => let
-      val () = free_node(node, fuel)
-    in free_nodes(rest, fuel) end
+      val () = free_node(node)
+    in free_nodes(rest) end
