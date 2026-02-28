@@ -44,14 +44,12 @@
    ============================================================ *)
 
 fn _peek {lb:agz}{n:pos}
-  (data: !$A.borrow(byte, lb, n), off: int, len: int n): int = let
-  val off1 = g1ofg0(off)
-in
-  if off1 >= 0 then
-    if off1 < len then byte2int0($A.read<byte>(data, off1))
+  (data: !$A.borrow(byte, lb, n), off: int, len: int n): int =
+  if off >= 0 then
+    if off < g0ofg1(len) then
+      byte2int0($A.read<byte>(data, $AR.checked_idx(off, len)))
     else ~1
   else ~1
-end
 
 fn _is_ws(c: int): int =
   if c = 32 then 1 else if c = 9 then 1 else if c = 10 then 1 else if c = 13 then 1 else 0
