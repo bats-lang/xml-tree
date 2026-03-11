@@ -57,8 +57,9 @@ fn _is_ws(c: int): int =
 fn _is_name_char(c: int): int =
   if c >= 97 then (if c < 123 then 1 else 0)
   else if c >= 65 then (if c < 91 then 1 else 0)
+  else if c = 58 then 1
   else if c >= 48 then (if c < 58 then 1 else 0)
-  else if c = 95 then 1 else if c = 45 then 1 else if c = 46 then 1 else if c = 58 then 1 else 0
+  else if c = 95 then 1 else if c = 45 then 1 else if c = 46 then 1 else 0
 
 (* ============================================================
    Scanning helpers
