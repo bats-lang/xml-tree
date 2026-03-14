@@ -162,7 +162,7 @@ end
 fun _parse_nodes {lb:agz}{n:pos}{k:nat} .<k>.
   (data: !$A.borrow(byte, lb, n), len: int n,
    rem: int(k), pos: int): [sz:nat] (xml_node_list(sz), int) = let
-  val p = _skip_ws(data, len, $AR.checked_nat(len), pos)
+  val p = pos
 in
   if rem <= 0 then (xml_nodes_nil(), p)
   else if p >= len then (xml_nodes_nil(), p)
