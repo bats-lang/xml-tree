@@ -1,7 +1,6 @@
 [package]
 name = "xml-tree"
 kind = "lib"
-unsafe = true
 
 [dependencies]
 "arith" = ""
