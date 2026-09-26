@@ -1,0 +1,8 @@
+[package]
+name = "tree"
+kind = "bin"
+
+[dependencies]
+"array" = ""
+"str" = ""
+"xml-tree" = ""
