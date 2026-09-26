@@ -12,10 +12,14 @@
    Types -- size-indexed for termination proofs
    ============================================================ *)
 
+(* Offsets and lengths into the parsed document. Indexed, so a consumer
+   can range-check one against its buffer and then read with it, no cast. *)
+#pub typedef xpos = [x:int] int x
+
 #pub datavtype xml_node(sz:int) =
   | {sa:nat}{sc:nat}
-    xml_element(1+sa+sc) of (int, int, xml_attr_list(sa), xml_node_list(sc))
-  | xml_text(1) of (int, int)
+    xml_element(1+sa+sc) of (xpos, xpos, xml_attr_list(sa), xml_node_list(sc))
+  | xml_text(1) of (xpos, xpos)
 
 #pub and xml_node_list(sz:int) =
   | xml_nodes_nil(0) of ()
@@ -25,7 +29,7 @@
 #pub and xml_attr_list(sz:int) =
   | xml_attrs_nil(0) of ()
   | {s1:nat}
-    xml_attrs_cons(1+s1) of (int, int, int, int, xml_attr_list(s1))
+    xml_attrs_cons(1+s1) of (xpos, xpos, xpos, xpos, xml_attr_list(s1))
 
 (* ============================================================
    Public API
