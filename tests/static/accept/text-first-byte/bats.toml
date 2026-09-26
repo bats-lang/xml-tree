@@ -1,0 +1,7 @@
+[package]
+name = "text-first-byte"
+kind = "lib"
+
+[dependencies]
+"array" = ""
+"xml-tree" = ""

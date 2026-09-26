@@ -1,0 +1,7 @@
+[package]
+name = "text-first-byte-unchecked"
+kind = "lib"
+
+[dependencies]
+"array" = ""
+"xml-tree" = ""
