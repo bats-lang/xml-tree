@@ -8,20 +8,20 @@
    by position in the walk), plus a node count. Exact values are pinned;
    truncated inputs must parse without reading out of bounds.
    Exits 1 on any mismatch. *)
-fun walk_attrs {s:nat} .<s>. (a: !$X.xml_attr_list(s), acc: int, k: int): @(int, int) =
+fun walk_attrs {n:int}{s:nat} .<s>. (a: !$X.xml_attr_list(n, s), acc: int, k: int): @(int, int) =
   case+ a of
   | $X.xml_attrs_nil() => @(acc, k)
   | $X.xml_attrs_cons(ns, nl, vs, vl, rest) =>
       walk_attrs(rest, acc + k * (ns + 3 * nl + 5 * vs + 7 * vl), k + 1)
 
-fun walk_nodes {s:nat} .<s, 1>. (l: !$X.xml_node_list(s), acc: int, k: int): @(int, int) =
+fun walk_nodes {n:int}{s:nat} .<s, 1>. (l: !$X.xml_node_list(n, s), acc: int, k: int): @(int, int) =
   case+ l of
   | $X.xml_nodes_nil() => @(acc, k)
   | $X.xml_nodes_cons(node, rest) => let
       val @(a2, k2) = walk_node(node, acc, k)
     in walk_nodes(rest, a2, k2) end
 
-and walk_node {s:pos} .<s, 0>. (n: !$X.xml_node(s), acc: int, k: int): @(int, int) =
+and walk_node {n:int}{s:pos} .<s, 0>. (n: !$X.xml_node(n, s), acc: int, k: int): @(int, int) =
   case+ n of
   | $X.xml_text(ts, tl) => @(acc + k * (11 * ts + 13 * tl), k + 1)
   | $X.xml_element(ns, nl, attrs, kids) => let
@@ -53,7 +53,13 @@ implement main0 () = let
   val r2 = run("truncated attribute", d2, 7, 122, 3)
   val r3 = run("truncated comment", d3, 6, 0, 1)
   val r4 = run("text only", d4, 3, 39, 2)
+  (* <r a='/>'>t</r>: the "/>" inside the quoted value does not end the
+     tag. Element r (1,1) at k=1: 17 + 19 = 36; attribute (3,1,6,2) at
+     k=2: 2 * (3 + 3 + 30 + 14) = 100; text (10,1) at k=3:
+     3 * (110 + 13) = 369. *)
+  var d5 = @[char][15]('<', 'r', ' ', 'a', '=', '\047', '/', '>', '\047', '>', 't', '<', '/', 'r', '>')
+  val r5 = run("quoted tag end", d5, 15, 505, 4)
 in
-  if r1 && r2 && r3 && r4 then println! ("tree: all cases pass")
+  if r1 && r2 && r3 && r4 && r5 then println! ("tree: all cases pass")
   else exit_void(1)
 end
