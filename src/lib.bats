@@ -136,8 +136,9 @@ fun _skip_closing {lb:agz}{n:pos}{p:nat | p <= n} .<n - p>.
   else _skip_closing(data, len, p + 1)
 
 (* Where a start tag ends, searching from lo: its '>' at t, the "/>" of
-   an empty element at t, or no end before the end of the input. *)
-datatype tag_end(n:int, lo:int) =
+   an empty element at t, or no end before the end of the input. Linear:
+   a datatype's cell is never freed (there is no GC). *)
+datavtype tag_end(n:int, lo:int) =
   | {t:int | lo <= t; t < n} tag_open(n, lo) of int t
   | {t:int | lo <= t; t + 1 < n} tag_self(n, lo) of int t
   | tag_eof(n, lo) of ()
@@ -237,11 +238,11 @@ and _parse_element {lb:agz}{n:pos}{p:nat | p + 1 < n} .<n - p, 0>.
   val p2 = _skip_ws(data, len, name_end)
 in
   case+ _find_tag_end(data, len, p2) of
-  | tag_self(t) =>
+  | ~tag_self(t) =>
       (xml_element(name_start, name_len, _parse_attrs(data, len, p2, t), xml_nodes_nil()), t + 2)
-  | tag_eof() =>
+  | ~tag_eof() =>
       (xml_element(name_start, name_len, _parse_attrs(data, len, p2, len), xml_nodes_nil()), len)
-  | tag_open(t) => let
+  | ~tag_open(t) => let
       val attrs = _parse_attrs(data, len, p2, t)
       val (children, c) = _parse_nodes(data, len, t + 1)
       val node = xml_element(name_start, name_len, attrs, children)

@@ -1,0 +1,1 @@
+The tree's cells, and every cell the parser makes along the way, are freed.
