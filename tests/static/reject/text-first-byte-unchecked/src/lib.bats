@@ -2,14 +2,12 @@
 #use array as A
 #use xml-tree as X
 
-(* The first byte of a text node, read from the document at the node's
-   offset. The offset is indexed, so after checking it against the
-   buffer the read needs no cast; without the check it is rejected. *)
-#pub fn text_first_byte {l:agz}{n:pos}
-  (data: !$A.borrow(byte, l, n), len: int n, node: !$X.xml_node(1)): int
+(* The byte just past a text node's span may be past the end of the
+   document: reading it must not type-check. *)
+#pub fn text_past_end {l:agz}{n:pos}
+  (data: !$A.borrow(byte, l, n), len: int n, node: !$X.xml_node(n, 1)): int
 
-implement text_first_byte (data, len, node) =
+implement text_past_end (data, len, node) =
   case+ node of
-  | $X.xml_text(off, _) =>
-      byte2int0($A.read<byte>(data, off))
+  | $X.xml_text(off, k) => byte2int0($A.read<byte>(data, off + k))
   | $X.xml_element(_, _, _, _) => ~1
