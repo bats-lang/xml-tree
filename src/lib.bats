@@ -269,16 +269,22 @@ fun _free_attrs {n:int}{sa:nat} .<sa>.
   | ~xml_attrs_nil() => ()
   | ~xml_attrs_cons(_, _, _, _, rest) => _free_attrs(rest)
 
-implement free_node {n}{sz} (node) =
+(* A node's children are smaller than it, and a list's first node is no
+   larger than the list: the metric orders a node before its list *)
+fun _free_node {n:int}{sz:pos} .<sz, 0>. (node: xml_node(n, sz)): void =
   case+ node of
   | ~xml_element(_, _, attrs, children) => let
       val () = _free_attrs(attrs)
-    in free_nodes(children) end
+    in _free_nodes(children) end
   | ~xml_text(_, _) => ()
 
-implement free_nodes {n}{sz} (nodes) =
+and _free_nodes {n:int}{sz:nat} .<sz, 1>. (nodes: xml_node_list(n, sz)): void =
   case+ nodes of
   | ~xml_nodes_nil() => ()
   | ~xml_nodes_cons(node, rest) => let
-      val () = free_node(node)
-    in free_nodes(rest) end
+      val () = _free_node(node)
+    in _free_nodes(rest) end
+
+implement free_node {n}{sz} (node) = _free_node(node)
+
+implement free_nodes {n}{sz} (nodes) = _free_nodes(nodes)
